@@ -24,8 +24,8 @@ async function build_runtime(file: Lambolt.File, target: string) {
 
 async function compile_c_dylib() {
   var bin = (new URL("./../bin/", import.meta.url)).pathname;
-  var st0 = await Deno.run({cmd: ["clang", "-O3", "-c", "-o", bin+"Runtime.o", bin+"Runtime.c"]}).status();
-  var st1 = await Deno.run({cmd: ["clang", "-O3", "-shared", "-o", bin+"Runtime."+dylib_suffix(), bin+"Runtime.c"]}).status();
+  var st0 = await Deno.run({cmd: ["clang", "-fPIC", "-O3", "-c", "-o", bin+"Runtime.o", bin+"Runtime.c"]}).status();
+  var st1 = await Deno.run({cmd: ["clang", "-fPIC", "-O3", "-shared", "-o", bin+"Runtime."+dylib_suffix(), bin+"Runtime.c"]}).status();
 }
 
 function load_c_dylib() {
