@@ -89,7 +89,6 @@ export function array_pop(arr: Arr) : number | null {
 export var GAS : number = 0;
 ////export var MEM : Mem = null as unknown as Mem;
 
-
 export function Nil() : Lnk {
   return NIL;
 }
@@ -260,10 +259,12 @@ export function collect(MEM: Mem, term: Lnk) {
     }
     case DP0: {
       link(MEM, get_loc(term,0), Nil());
+      //reduce(MEM, get_loc(get_lnk(MEM,term,1),0));
       break;
     }
     case DP1: {
       link(MEM, get_loc(term,1), Nil());
+      //reduce(MEM, get_loc(get_lnk(MEM,term,0),0));
       break;
     }
     case CAL:
@@ -301,11 +302,12 @@ export function subst(MEM: Mem, lnk: Lnk, val: Lnk) {
   }
 }
 
+
 export function reduce(MEM: Mem, host: number) : Lnk {
   while (true) {
 
     var term = deref(MEM, host);
-    //console.log("?", G.show_term(MEM,term));
+    //console.log("reduce", debug_show(MEM,deref(MEM,0)));
 
     switch (get_tag(term)) {
       case APP: {
@@ -362,12 +364,12 @@ export function reduce(MEM: Mem, host: number) : Lnk {
         }
         break;
       }
-      // {a _op_ b}
-      // ---------- OP2-U32
-      // _op_(a, b)
       case OP2: {
         var val0 = reduce(MEM, get_loc(term,0));
         var val1 = reduce(MEM, get_loc(term,1));
+        // (+ a b)
+        // --------- OP2-U32
+        // add(a, b)
         if (get_tag(val0) === U32 && get_tag(val1) === U32) {
           var a = get_num(val0);
           var b = get_num(val1);
@@ -394,12 +396,49 @@ export function reduce(MEM: Mem, host: number) : Lnk {
           clear(MEM, get_loc(term,0), 2);
           return link(MEM, host, U_32(c));
         }
+        // (+ &A<a0 a1> b)
+        // --------------- OP2-PAR
+        // !A<b0 b1> = b
+        // &A<(+ a0 b0) (+ a1 b1)>
+        if (get_tag(val0) == PAR) {
+          var op20 = get_loc(term, 0);
+          var op21 = get_loc(val0, 0);
+          var let0 = alloc(MEM, 3);
+          var par0 = alloc(MEM, 2);
+          link(MEM, let0+2, val1);
+          link(MEM, op20+1, Dp0(get_col(val0), let0));
+          link(MEM, op20+0, get_lnk(MEM, val0, 0));
+          link(MEM, op21+0, get_lnk(MEM, val0, 1));
+          link(MEM, op21+1, Dp1(get_col(val0), let0));
+          link(MEM, par0+0, Op2(get_ope(term), op20));
+          link(MEM, par0+1, Op2(get_ope(term), op21));
+          return link(MEM, host, Par(get_col(val0), par0));
+        }
+        // (+ a &A<b0 b1>)
+        // --------------- OP2-PAR
+        // !A<a0 a1> = a
+        // &A<(+ a0 a1) (+ b0 b1)>
+        if (get_tag(val1) == PAR) {
+          var op20 = get_loc(term, 0);
+          var op21 = get_loc(val1, 0);
+          var let0 = alloc(MEM, 3);
+          var par0 = alloc(MEM, 2);
+          link(MEM, let0+2, val0);
+          link(MEM, op20+1, Dp0(get_col(val1), let0));
+          link(MEM, op20+0, get_lnk(MEM, val1, 0));
+          link(MEM, op21+0, get_lnk(MEM, val1, 1));
+          link(MEM, op21+1, Dp1(get_col(val1), let0));
+          link(MEM, par0+0, Op2(get_ope(term), op20));
+          link(MEM, par0+1, Op2(get_ope(term), op21));
+          return link(MEM, host, Par(get_col(val1), par0));
+        }
+        break;
       }
       case DP0:
       case DP1: {
         let expr = reduce(MEM, get_loc(term,2));
         switch (get_tag(expr)) {
-          // !A<r s> = λx: f
+          // !A<r s> = λx f
           // --------------- LET-LAM
           // !A<f0 f1> = f
           // r <- λx0: f0
@@ -533,8 +572,8 @@ export function reduce(MEM: Mem, host: number) : Lnk {
             } else {
               let ctr0 = get_loc(expr,0);
               let ctr1 = alloc(MEM, arit);
-              subst(MEM, get_lnk(MEM,term,0), Ctr(func, arit, ctr0));
-              subst(MEM, get_lnk(MEM,term,1), Ctr(func, arit, ctr1));
+              var term_lnk_0 = get_lnk(MEM,term,0);
+              var term_lnk_1 = get_lnk(MEM,term,1);
               for (let i = 0; i < arit; ++i) {
                 let leti = i === 0 ? get_loc(term,0) : alloc(MEM, 3);
                 var expr_lnk_i = get_lnk(MEM, expr, i);
@@ -542,6 +581,8 @@ export function reduce(MEM: Mem, host: number) : Lnk {
                 link(MEM, ctr1+i, Dp1(get_col(term), leti));
                 link(MEM, leti+2, expr_lnk_i);
               }
+              subst(MEM, term_lnk_0, Ctr(func, arit, ctr0));
+              subst(MEM, term_lnk_1, Ctr(func, arit, ctr1));
               return link(MEM, host, Ctr(func, arit, get_tag(term) === DP0 ? ctr0 : ctr1));
             }
             //let ctr0 = alloc(MEM, arit);
@@ -596,11 +637,11 @@ export function normal(MEM: Mem, host: number) : number {
 
 function normal_go(MEM: Mem, host: number, seen: MAP<boolean>) : Lnk {
   var term = deref(MEM, host);
-  if (seen[get_loc(term,0)]) {
+  if (seen[host]) {
     return term;
   } else {
     term = reduce(MEM, host);
-    seen[get_loc(term,0)] = true;
+    seen[host] = true;
     switch (get_tag(term)) {
       case LAM: {
         link(MEM, get_loc(term,1), normal_go(MEM, get_loc(term,1), seen));
@@ -639,4 +680,126 @@ function normal_go(MEM: Mem, host: number, seen: MAP<boolean>) : Lnk {
   }
 }
 
+// Debug
+// -----
 
+export function debug_show(MEM: Mem, term: Lnk, table: {[str:string]:string}) : string {
+  var lets : {[key:string]:number} = {};
+  var kinds : {[key:string]:number} = {};
+  var names : {[key:string]:string} = {};
+  var count = 0;
+  function find_lets(term: Lnk) {
+    switch (get_tag(term)) {
+      case LAM: {
+        names[get_loc(term,0)] = String(++count);
+        find_lets(get_lnk(MEM, term, 1));
+        break;
+      }
+      case APP: {
+        find_lets(get_lnk(MEM, term, 0));
+        find_lets(get_lnk(MEM, term, 1));
+        break;
+      }
+      case PAR: {
+        find_lets(get_lnk(MEM, term, 0));
+        find_lets(get_lnk(MEM, term, 1));
+        break;
+      }
+      case DP0: {
+        if (!lets[get_loc(term,0)]) {
+          names[get_loc(term,0)] = String(++count);
+          kinds[get_loc(term,0)] = get_col(term);
+          lets[get_loc(term,0)] = get_loc(term,0);
+          find_lets(get_lnk(MEM, term, 2));
+        }
+        break;
+      }
+      case DP1: {
+        if (!lets[get_loc(term,0)]) {
+          names[get_loc(term,0)] = String(++count);
+          kinds[get_loc(term,0)] = get_col(term);
+          lets[get_loc(term,0)] = get_loc(term,0);
+          find_lets(get_lnk(MEM, term, 2));
+        }
+        break;
+      }
+      case CAL:
+      case CTR: {
+        var arity = get_ari(term);
+        for (var i = 0; i < arity; ++i) {
+          find_lets(get_lnk(MEM, term,i));
+        }
+        break;
+      }
+      case OP2: {
+        find_lets(get_lnk(MEM, term, 0));
+        find_lets(get_lnk(MEM, term, 1));
+        break;
+      }
+    }
+  }
+  function go(term: Lnk) : string {
+    switch (get_tag(term)) {
+      case LAM: {
+        var name = "x" + (names[get_loc(term,0)] || "?");
+        return "λ" + name + " " + go(get_lnk(MEM, term, 1));
+      }
+      case APP: {
+        let func = go(get_lnk(MEM, term, 0));
+        let argm = go(get_lnk(MEM, term, 1));
+        return "(" + func + " " + argm + ")";
+      }
+      case PAR: {
+        let kind = get_col(term);
+        let func = go(get_lnk(MEM, term, 0));
+        let argm = go(get_lnk(MEM, term, 1));
+        return "&" + kind + "<" + func + " " + argm + ">";
+      }
+      case CAL:
+      case CTR: {
+        let func = get_fun(term);
+        let arit = get_ari(term);
+        let args = [];
+        for (let i = 0; i < arit; ++i) {
+          args.push(go(get_lnk(MEM, term, i)));
+        }
+        if (table && table[func]) {
+          return "(" + table[func] + args.map(x => " " + x).join("") + ")";
+        } else {
+          return "(F" + func + args.map(x => " " + x).join("") + ")";
+        }
+      }
+      case DP0: {
+        return "a" + (names[get_loc(term,0)] || "?");
+      }
+      case DP1: {
+        return "b" + (names[get_loc(term,0)] || "?");
+      }
+      case VAR: {
+        return "x" + (names[get_loc(term,0)] || "?");
+      }
+      case OP2: {
+        let oper = get_ope(term);
+        let val0 = go(get_lnk(MEM, term, 0));
+        let val1 = go(get_lnk(MEM, term, 1));
+        return "#{" + oper + " " + val0 + " " + val1 + "}";
+      }
+      case U32: {
+        return "#" + get_num(term);
+      }
+    }
+    return "<?" + term + ">";
+  }
+  find_lets(term);
+  var text = go(term);
+  for (var key of Object.keys(lets).reverse()) {
+    var pos  = lets[key];
+    var kind = kinds[key] || 0;
+    var name = names[pos] || "?";
+    var nam0 = deref(MEM, pos+0) === Nil() ? "*" : "a"+name;
+    var nam1 = deref(MEM, pos+1) === Nil() ? "*" : "b"+name;
+    text += " !" + kind + "<"+nam0+" "+nam1+"> = " + go(deref(MEM, pos + 2)) + ";";
+  }
+  //text += go(term);
+  return text;
+}
