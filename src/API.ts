@@ -32,8 +32,8 @@ function c_load_dylib() {
   if (c_dylib === null) {
     var path = new URL("./../bin/Runtime.so", import.meta.url);
     c_dylib = Deno.dlopen(path, {
-      "ffi_dynbook_add_page": {parameters: ["u64", "buffer"], result: "void"},
-      "ffi_normal": {parameters: ["buffer","u32", "u32"], result: "void"},
+      "ffi_dynbook_add_page": {parameters: ["u64", "pointer"], result: "void"},
+      "ffi_normal": {parameters: ["pointer", "u32", "u32"], result: "void"},
       "ffi_get_cost": {parameters: [], result: "u32"},
       "ffi_get_size": {parameters: [], result: "u32"},
     });
