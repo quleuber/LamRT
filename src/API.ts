@@ -22,7 +22,7 @@ async function build_runtime(file: Lambolt.File, target: string, mode: Mode) {
 
 async function c_compile() {
   var bin = (new URL("./../bin/", import.meta.url)).pathname;
-  var cmd = "clang -O3 -shared -o "+bin+"Runtime.so "+bin+"Runtime.c";
+  var cmd = "clang -fPIC -O3 -shared -o "+bin+"Runtime.so "+bin+"Runtime.c";
   var stt = await Deno.run({cmd: cmd.split(" ")}).status();
   console.log(cmd);
 }

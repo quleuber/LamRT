@@ -23,13 +23,14 @@ const u64 U64_PER_MB = 0x20000;
 const u64 U64_PER_GB = 0x8000000;
 
 #ifdef PARALLEL
-const u64 MAX_WORKERS = 4;
+#define MAX_WORKERS (4)
 #else
-const u64 MAX_WORKERS = 1;
+#define MAX_WORKERS (1)
 #endif
-const u64 MAX_DYNFUNS = 65536;
-const u64 MAX_ARITY = 16;
-const u64 MEM_SPACE = U64_PER_GB;
+
+#define MAX_DYNFUNS (65536)
+#define MAX_ARITY (16)
+#define MEM_SPACE (U64_PER_GB)
 
 // Terms
 // -----
@@ -140,8 +141,8 @@ typedef Page** Book;
 Worker workers[MAX_WORKERS];
 Page* book[MAX_DYNFUNS];
 
-const u64 seen_size = 4194304; // uses 32 MB, covers heaps up to 2 GB
-u64 seen_data[seen_size]; 
+#define SEEN_SIZE (4194304) // uses 32 MB, covers heaps up to 2 GB
+u64 seen_data[SEEN_SIZE];
 
 // Array
 // -----
@@ -1055,7 +1056,7 @@ u64 ffi_get_size() {
 void ffi_normal(u8* mem_data, u32 mem_size, u32 host) {
 
   // Inits seen
-  for (u64 i = 0; i < seen_size; ++i) {
+  for (u64 i = 0; i < SEEN_SIZE; ++i) {
     seen_data[i] = 0;
   }
 
@@ -1075,7 +1076,7 @@ void ffi_normal(u8* mem_data, u32 mem_size, u32 host) {
     workers[t].has_result = -1;
     pthread_mutex_init(&workers[t].has_result_mutex, NULL);
     pthread_cond_init(&workers[t].has_result_signal, NULL);
-    workers[t].thread = NULL;
+    // workers[t].thread = NULL;
     #endif
   }
 
@@ -1141,6 +1142,6 @@ int main() {
   printf("Reducing...\n");
   ffi_normal((u8*)mem.node, mem.size, 0);
   printf("Done!\n");
-  free(&mem.node);
+  free(mem.node);
   printf("rwt: %llu\n", ffi_cost);
 }
